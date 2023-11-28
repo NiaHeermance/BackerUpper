@@ -31,7 +31,7 @@ def main():
                 command = f'{command_start} {source_path} {dest_path}'
 
                 if "Exclude" in local_location:
-                    folders_to_exclude = f"\"{"\" \"".join(local_location["Exclude"])}\""
+                    folders_to_exclude = f'\"{'\" \"'.join(local_location["Exclude"])}\"'
                     command += f" --exclude {folders_to_exclude}"
 
                 print(command)
