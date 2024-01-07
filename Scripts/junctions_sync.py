@@ -1,11 +1,10 @@
 import os
-import subprocess
 import json
 from pathlib import Path
 import shutil
 import filecmp
 
-INITIAL_HIDDEN_CHAIN_STEM = "../.HiddenChains/"
+INITIAL_HIDDEN_CHAIN_STEM = Path("../.HiddenChains")
 
 def loadJunctionsConfig():
     with open("../Configuration/Files/junctions.json", "r") as configuration_file:
@@ -13,31 +12,30 @@ def loadJunctionsConfig():
         return config["Junctions"]
 
 
-def process_target_end(linkname, target_start, target_end):
+def processTargetEnd(linkname: Path, target_twothirds: Path, target_end: str):
     star_count = target_end.count("*")
     if star_count > 2:
         print("Error: Too many * in ", target_end)
         exit(1)
     elif star_count == 1:
         star = target_end.index("*")
-        slash = linkname.rindex("/")
-        linkname_final_dir = linkname[slash+1:]
-        target_end = target_end[:star] + linkname_final_dir + target_end[star+1:]
+        linkname_final_layer = linkname.parts[-1]
+        target_end = "".join([target_end[:star], linkname_final_dir, target_end[star+1:]])
 
-    return f'{target_start}/{target_end}'
+    return target_twothirds / target_end
 
 
-def check_if_each_empty_except_next_layer(starting_layer, end_layer):
+def isEachEmptyExceptNextLayer(starting_layer: Path, end_layer: str):
     path = starting_layer
     for layer in Path(end_layer).parts[:-1]:
-        path += "/" + layer
-        if len(os.listdir(path)) > 1:
+        path = path / layer
+        if len(path.listdir) > 1:
             return False
     return True
 
 
-def create_hidden_chain(linkname_start, linkname_end, final_target):
-    if not check_if_each_empty_except_next_layer(linkname_start, linkname_end):
+def createHiddenChain(linkname_start: Path, linkname_end: str, final_target: Path):
+    if not isEachEmptyExceptNextLayer(linkname_start, linkname_end):
         print(
             "Error: Tried to use Hidden Chain with a non-empty in chain.\n",
             f"Chain was {linkname_end}"
@@ -52,93 +50,78 @@ def create_hidden_chain(linkname_start, linkname_end, final_target):
         )
         exit(1)
 
-    move_files(f'{linkname_start}/{linkname_end}', final_target)
+    moveFiles(linkname_start / linkname_end, final_target)
     first_part = Path(linkname_end).parts[0]
-    first_layer = f'{linkname_start}/{first_part}'
+    first_layer = linkname_start / first_part
     shutil.rmtree(first_layer)
 
     linkname_end_minus_finale = linkname_end[:slash]
-    second_to_last_target = INITIAL_HIDDEN_CHAIN_STEM + linkname_end_minus_finale
-    make_dir(second_to_last_target)
+    second_to_last_target = INITIAL_HIDDEN_CHAIN_STEM / linkname_end_minus_finale
+    makeDir(second_to_last_target)
 
-    junction_command(first_layer, INITIAL_HIDDEN_CHAIN_STEM + first_part)
-    return os.getcwd() + "/" + INITIAL_HIDDEN_CHAIN_STEM + linkname_end
+    junctionCommand(first_layer, INITIAL_HIDDEN_CHAIN_STEM / first_part)
+    return Path.getcwd() / INITIAL_HIDDEN_CHAIN_STEM / linkname_end
 
 
 
-def create_junction(linkname_start, linkname_end, target_start, target_info):
-    linkname = f'{linkname_start}/{linkname_end}'
-    if os.path.isjunction(linkname):
+def createJunction(linkname_start: Path, linkname_end: str, target_twothirds: Path, target_info: dict):
+    linkname = linkname_start / linkname_end
+    if linkname.is_junction():
         # print("Junction from ", linkname, " already exists.")
         return
     has_hidden_chain = "Hidden Chain" in target_info and target_info["Hidden Chain"]
-    first_layer = linkname_start + "/" + Path(linkname_end).parts[0]
-    if has_hidden_chain and os.path.isjunction(first_layer):
+    first_layer = linkname_start / Path(linkname_end).parts[0]
+    if has_hidden_chain and first_layer.is_junction():
         # print("Junction from ", linkname, " already exists.")
         return
 
-
     if "Out" in target_info:
-        target = process_target_end(linkname, target_start, target_info["Out"])
+        target = processTargetEnd(linkname, target_twothirds, target_info["Out"])
     else:
-        target = target_start
-    make_dir(target)
+        target = target_twothirds
+    makeDir(target)
 
-    link_path = Path(linkname)
     if has_hidden_chain:
-        linkname = create_hidden_chain(linkname_start, linkname_end, target)
-        print(linkname)
-    elif link_path.exists():
-        move_files(linkname, target)
+        linkname = createHiddenChain(linkname_start, linkname_end, target)
+    elif linkname.exists():
+        moveFiles(linkname, target)
         shutil.rmtree(linkname)
 
-    junction_command(linkname, target)
+    junctionCommand(linkname, target)
 
 
-def move_files(source, destination):
-    files = os.listdir(source)
+def moveFiles(source: Path, destination: Path):
+    files = source.iterdir()
     for file in files:
-        file_path = source + "/" + file
         try:
-            shutil.move(file_path, destination)
+            shutil.move(file, destination)
         except:
-            potential_duplicate = destination + "/" + file
-            if not filecmp.cmp(file_path, potential_duplicate):
-                file_object = Path(file_path)
-                new_name = f'{source}/{file_object.stem} (From Prior Dir){file_object.suffix}'
-                os.rename(file_path, new_name)
-                shutil.move(new_name, destination)
+            potential_duplicate = destination / file.name
+            if not filecmp.cmp(file, potential_duplicate):
+                new_name =  source / file.stem / f'(From Prior Dir){file.suffix}'
+                file.replace(new_name)
 
 
-
-
-def make_dir(path_string):
-    path = Path(path_string)
+def makeDir(path: Path):
     path.mkdir(parents=True, exist_ok=True)
 
 
-def junction_command(linkname, target):
-    linkname = forwardToBackSlash(linkname)
-    target = forwardToBackSlash(target)
-    os.system(f'mklink /J "{linkname}" "{target}"')
-
-
-def forwardToBackSlash(str):
-    return str.replace("/", "\\")
+def junctionCommand(linkname, target):
+    os.system(f'mklink /J "{str(linkname)}" "{str(target)}"')
 
 
 def main():
     junctions = loadJunctionsConfig()
 
     for junction_starts in junctions:
-        linkname_start = junction_starts["LinkName Start"]
+        linkname_start = Path(junction_starts["LinkName Start"])
         targets = junction_starts["Targets"]
         for target_area in targets:
-            target_start = target_area["Target Start"]
-            target_start = f'{linkname_start}/{target_start}'
-            targets = target_area["Directories"]
-            for linkname_end, target in targets.items():
-                create_junction(linkname_start, linkname_end, target_start, target)
+            target_mid = target_area["Target Continuation"]
+            target_twothirds = linkname_start / target_mid
+            target_infos = target_area["Directories"]
+            for linkname_end, target_info in target_infos.items():
+                createJunction(linkname_start, linkname_end, target_twothirds, target_info)
 
 
 if __name__ == "__main__":
