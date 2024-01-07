@@ -3,6 +3,7 @@ import subprocess
 import json
 from pathlib import Path
 import shutil
+import filecmp
 
 INITIAL_HIDDEN_CHAIN_STEM = "../.HiddenChains/"
 
@@ -97,7 +98,18 @@ def create_junction(linkname_start, linkname_end, target_start, target_info):
 def move_files(source, destination):
     files = os.listdir(source)
     for file in files:
-        shutil.move(source + "/" + file, destination)
+        file_path = source + "/" + file
+        try:
+            shutil.move(file_path, destination)
+        except:
+            potential_duplicate = destination + "/" + file
+            if not filecmp.cmp(file_path, potential_duplicate):
+                file_object = Path(file_path)
+                new_name = f'{source}/{file_object.stem} (From Prior Dir){file_object.suffix}'
+                os.rename(file_path, new_name)
+                shutil.move(new_name, destination)
+
+
 
 
 def make_dir(path_string):
