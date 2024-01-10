@@ -1,3 +1,12 @@
+# _,.-'~'-.,__,.-'~'-.,__,.-'~'-.,__,.-'~'
+#
+# junctions_sync.py
+#
+# Running this script will use ../Configuration/Files/junctions.json to create
+# the desired directory junctions.
+#
+# _,.-'~'-.,__,.-'~'-.,__,.-'~'-.,__,.-'~'
+
 import os
 import json
 from pathlib import Path
