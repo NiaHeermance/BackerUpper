@@ -1,56 +1,121 @@
 import os
+import platform
+import sys
 import json
+from pathlib import Path
+
+ARGUMENT_FOR_DEPLOY = "--Deploy"
+
+WINDOWS_PREFACE = "wsl"
+
+SYNC_COMMAND = "rsync -a --delete"
+
+def get_sync_information():
+    with open("../Configuration/Files/sync_config.json", "r") as config:
+        return json.load(config)
+
+
+def get_commandline_arguments():
+    if len(sys.argv) > 2:
+        message = "Error: More than one command line argument provided."
+        print(message)
+        exit(1)
+
+    arguments = {}
+    if len(sys.argv) == 0:
+        arguments["Deploy"] = False
+    elif sys.argv[1] == ARGUMENT_FOR_DEPLOY:
+        arguments["Deploy"] = True
+    else:
+        message = f"""Error: Provided command line argument is not '{ARGUMENT_FOR_DEPLOY}'.
+Given: {sys.argv[1]}
+"""
+        print(message)
+        exit(1)
+    return arguments
+
+
+def get_source_and_dest_strings(local: Path, backup: Path, to_deploy: bool):
+    local_ret = f'"{local.as_posix()}/"'
+    backup_ret = f'"{backup.as_posix()}/"'
+
+    if to_deploy:
+        return backup_ret, local_ret
+    else:
+        local_ret, backup_ret
+
+
+def save_or_deploy_all(
+        to_deploy: bool,
+        backup: Path,
+        local: Path,
+        local_location: dict
+    ):
+    source, dest = get_source_and_dest_strings(local, backup, to_deploy)
+
+    command = f'{SYNC_COMMAND} {source} {dest}'
+
+    if not to_deploy and "Exclude" in local_location:
+        folders_to_exclude = '"' + '" "'.join(local_location["Exclude"]) + '"'
+        command += f" --exclude {folders_to_exclude}"
+
+    run_linux_command(command)
+
+
+def save_or_deploy_specific_folders(
+        to_deploy: bool,
+        backup_twothirds: Path,
+        local_start: Path,
+        folders_to_save: list
+    ):
+    for path_ending in folders_to_save:
+        local = local_start / path_ending
+        backup = backup_twothirds / path_ending
+        source, dest = get_source_and_dest_strings(local, backup, to_deploy)
+
+        if not os.path.isdir(dest):
+            run_linux_command(f"mkdir -p {dest}")
+
+        command = f'{SYNC_COMMAND} {source} {dest}'
+        run_linux_command(command)
+
+
+def run_linux_command(command: str):
+    if platform.system() == "Windows":
+        command = f'{WINDOWS_PREFACE} {command}'
+    print(command)
+    os.system(command)
+
 
 def main():
-    to_store = {}
-    with open("../Configuration/Files/sync_config.json", "r") as configuration:
-        to_store = json.load(configuration)
+    to_sync = get_sync_information()
+    arguments = get_commandline_arguments()
+    to_deploy = arguments["Deploy"]
 
-    command_start = "wsl rsync -a --delete"
-
-    for backup_type, backup_info in to_store.items():
-        backup_path_start = backup_info["Backup Folder"]
-        if backup_path_start[-1] != '/':
-            backup_path_start += '/'
-
+    for backup_type, backup_info in to_sync.items():
+        backup_start = Path(backup_info["Backup Folder"])
         local_info = backup_info["Local Folders"]
-        for local_location in local_info:
-            local_path_start = local_location["Root"]
-            if local_path_start[-1] != '/':
-                local_path_start += '/'
 
-            backup_path_continuation = local_location["Backup Root"]
-            if backup_path_continuation[-1] != '/':
-                backup_path_continuation += '/'
-            backup_path_specific_start = backup_path_start + backup_path_continuation
+        for local_location in local_info:
+            local_start = Path(local_location["Root"])
+            backup_continuation = Path(local_location["Backup Root"])
+            backup_twothirds = backup_start / backup_continuation
 
             folders_to_save = local_location["To Save"]
             if folders_to_save == "All":
-                source_path = f"\"{local_path_start}\""
-                dest_path = f"\"{backup_path_specific_start}\""
-                command = f'{command_start} {source_path} {dest_path}'
-
-                if "Exclude" in local_location:
-                    folders_to_exclude = f'\"{'\" \"'.join(local_location["Exclude"])}\"'
-                    command += f" --exclude {folders_to_exclude}"
-
-                print(command)
-                os.system(command)
-
+                save_or_deploy_all(
+                    to_deploy,
+                    backup_twothirds,
+                    local_start,
+                    local_location
+                )
             else:
-                for to_save_fold in folders_to_save:
-                    source_path = f"\"{local_path_start}{to_save_fold}\""
-                    dest_path = f"\"{backup_path_specific_start}{to_save_fold}"
-
-                    last_slash = dest_path.rindex("/")
-                    dest_path = dest_path[0:last_slash] + "\""
-
-                    if not os.path.isdir(dest_path):
-                        os.system(f"wsl mkdir -p {dest_path}")
-
-                    command = f'{command_start} {source_path} {dest_path}'
-                    print(command)
-                    os.system(command)
+                save_or_deploy_specific_folders(
+                    to_deploy,
+                    backup_twothirds,
+                    local_start,
+                    folders_to_save
+                )
 
 
 if __name__ == "__main__":
