@@ -29,7 +29,7 @@ def processTargetEnd(linkname: Path, target_twothirds: Path, target_end: str):
     elif star_count == 1:
         star = target_end.index("*")
         linkname_final_layer = linkname.parts[-1]
-        target_end = "".join([target_end[:star], linkname_final_dir, target_end[star+1:]])
+        target_end = "".join([target_end[:star], linkname_final_layer, target_end[star+1:]])
 
     return target_twothirds / target_end
 
@@ -38,6 +38,8 @@ def isEachEmptyExceptNextLayer(starting_layer: Path, end_layer: str):
     path = starting_layer
     for layer in Path(end_layer).parts[:-1]:
         path = path / layer
+        if not path.exists():
+            return True
         if len(path.listdir) > 1:
             return False
     return True
@@ -59,17 +61,20 @@ def createHiddenChain(linkname_start: Path, linkname_end: str, final_target: Pat
         )
         exit(1)
 
-    moveFiles(linkname_start / linkname_end, final_target)
+    linkname = linkname_start / linkname_end
+    if linkname.exists():
+        moveFiles(linkname, final_target)
     first_part = Path(linkname_end).parts[0]
     first_layer = linkname_start / first_part
-    shutil.rmtree(first_layer)
+    if first_layer.exists():
+        shutil.rmtree(first_layer)
 
     linkname_end_minus_finale = linkname_end[:slash]
     second_to_last_target = INITIAL_HIDDEN_CHAIN_STEM / linkname_end_minus_finale
     makeDir(second_to_last_target)
 
     junctionCommand(first_layer, INITIAL_HIDDEN_CHAIN_STEM / first_part)
-    return Path.getcwd() / INITIAL_HIDDEN_CHAIN_STEM / linkname_end
+    return Path.cwd() / INITIAL_HIDDEN_CHAIN_STEM / linkname_end
 
 
 
