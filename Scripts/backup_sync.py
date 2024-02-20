@@ -22,7 +22,7 @@ def get_commandline_arguments():
         exit(1)
 
     arguments = {}
-    if len(sys.argv) == 0:
+    if len(sys.argv) == 1:
         arguments["Deploy"] = False
     elif sys.argv[1] == ARGUMENT_FOR_DEPLOY:
         arguments["Deploy"] = True
@@ -42,7 +42,7 @@ def get_source_and_dest_strings(local: Path, backup: Path, to_deploy: bool):
     if to_deploy:
         return backup_ret, local_ret
     else:
-        local_ret, backup_ret
+        return local_ret, backup_ret
 
 
 def save_or_deploy_all(
