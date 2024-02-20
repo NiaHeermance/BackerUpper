@@ -112,7 +112,7 @@ def moveFiles(source: Path, destination: Path):
         except:
             potential_duplicate = destination / file.name
             if not filecmp.cmp(file, potential_duplicate):
-                new_name =  source / file.stem / f'(From Prior Dir){file.suffix}'
+                new_name =  destination / (file.stem + f' (From Prior Dir){file.suffix}')
                 file.replace(new_name)
 
 
