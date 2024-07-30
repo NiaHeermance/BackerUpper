@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 import shutil
 import filecmp
+import sys
 
 INITIAL_HIDDEN_CHAIN_STEM = Path("../.HiddenChains")
 
@@ -80,12 +81,12 @@ def createHiddenChain(linkname_start: Path, linkname_end: str, final_target: Pat
 
 def createJunction(linkname_start: Path, linkname_end: str, target_twothirds: Path, target_info: dict):
     linkname = linkname_start / linkname_end
-    if linkname.is_junction():
+    if isJunction(linkname): # is_junction stopped working for some reason.
         # print("Junction from ", linkname, " already exists.")
         return
     has_hidden_chain = "Hidden Chain" in target_info and target_info["Hidden Chain"]
     first_layer = linkname_start / Path(linkname_end).parts[0]
-    if has_hidden_chain and first_layer.is_junction():
+    if has_hidden_chain and isJunction(first_layer):
         # print("Junction from ", linkname, " already exists.")
         return
 
@@ -102,6 +103,13 @@ def createJunction(linkname_start: Path, linkname_end: str, target_twothirds: Pa
         shutil.rmtree(linkname)
 
     junctionCommand(linkname, target)
+
+
+def isJunction(linkname: Path) -> bool:
+    try:
+        return bool(os.readlink(linkname))
+    except OSError:
+        return False
 
 
 def moveFiles(source: Path, destination: Path):
